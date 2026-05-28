@@ -841,6 +841,7 @@
       selectedFilteredIndex: 0,
       selectedRow: null,
       selectedRowKey: "",
+      hasSelection: false,
       file: null,
       loadMode: "",
       loadToken: 0,
@@ -1239,6 +1240,7 @@
       state.selectedFilteredIndex = 0;
       state.selectedRow = null;
       state.selectedRowKey = "";
+      state.hasSelection = false;
       state.file = null;
       state.loadMode = "";
       state.detailCache.clear();
@@ -1716,6 +1718,7 @@
       state.selectedFilteredIndex = 0;
       state.selectedRow = null;
       state.selectedRowKey = "";
+      state.hasSelection = false;
       state.file = file;
       state.loadMode = mode;
       state.detailCache.clear();
@@ -1851,8 +1854,9 @@
       if (state.selectedFilteredIndex < 0) state.selectedFilteredIndex = 0;
       state.selectedRow = null;
       state.selectedRowKey = "";
+      state.hasSelection = false;
       renderList();
-      loadSelectedRow(currentRow());
+      renderDetail();
     }
 
     function currentRow() {
@@ -1867,7 +1871,7 @@
       const b = bm25(row);
       const item = document.createElement("div");
       const selected = index === state.selectedFilteredIndex;
-      item.className = `recordItem virtual${selected ? " selected" : ""}`;
+      item.className = `recordItem virtual${selected && state.hasSelection ? " selected" : ""}`;
       item.dataset.index = String(index);
       item.style.transform = `translateY(${index * state.rowHeight}px)`;
       item.innerHTML = `
@@ -1926,6 +1930,7 @@
     function selectIndex(index) {
       if (!state.filtered.length) return;
       state.selectedFilteredIndex = Math.max(0, Math.min(index, state.filtered.length - 1));
+      state.hasSelection = true;
       renderList();
       const top = state.selectedFilteredIndex * state.rowHeight;
       const bottom = top + state.rowHeight;
@@ -2651,12 +2656,12 @@
     }
 
     function renderDetail() {
-      const row = state.selectedRow || currentRow();
+      const row = state.selectedRow || (state.hasSelection ? currentRow() : null);
       state.pretextBlocks.clear();
       if (!row) {
-        els.detail.innerHTML = `<div class="empty">${state.records.length ? "No record selected." : "Load a GLM51 SFT JSONL or ATIF trajectory file with the file picker."}</div>`;
+        els.detail.innerHTML = `<div class="empty">${state.records.length ? "Select a record to render its detail." : "Load a GLM51 SFT JSONL or ATIF trajectory file with the file picker."}</div>`;
         els.detailTitle.textContent = "Record";
-        els.detailStatus.textContent = state.records.length ? "No match" : "No file loaded";
+        els.detailStatus.textContent = state.records.length ? `${state.filtered.length} records loaded` : "No file loaded";
         return;
       }
       if (row.__isSummary && state.loadMode === "jsonl-lazy") {
