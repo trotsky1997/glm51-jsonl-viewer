@@ -211,6 +211,90 @@
       font-size: 13px;
       overflow-wrap: anywhere;
     }
+    .tokenReport {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+      margin: 10px 0 12px;
+      overflow: hidden;
+    }
+    .tokenReportHead {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .tokenReportHead span:last-child {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      text-align: right;
+    }
+    .tokenSummary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .tokenStat {
+      min-width: 0;
+      border: 1px solid #e3e7ee;
+      border-radius: 5px;
+      padding: 7px 8px;
+      background: #fff;
+    }
+    .tokenStat .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+      margin-bottom: 3px;
+    }
+    .tokenStat .value {
+      font-size: 15px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+    .tokenBreakdown {
+      padding: 10px;
+    }
+    .tokenRow {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) 110px;
+      gap: 8px;
+      align-items: center;
+      margin: 6px 0;
+      font-size: 12px;
+    }
+    .tokenName {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #3d4756;
+      font-weight: 650;
+    }
+    .tokenBar {
+      height: 8px;
+      border-radius: 999px;
+      background: #e9edf3;
+      overflow: hidden;
+    }
+    .tokenBarFill {
+      height: 100%;
+      min-width: 1px;
+      background: var(--accent);
+    }
+    .tokenValue {
+      text-align: right;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
     details {
       border: 1px solid var(--line);
       border-radius: 6px;
@@ -679,6 +763,8 @@
       .toolbar { grid-template-columns: 1fr 1fr; }
       .main { grid-template-columns: 1fr; grid-template-rows: 320px minmax(520px, 1fr); }
       .topMeta { grid-template-columns: 1fr; }
+      .tokenSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tokenRow { grid-template-columns: minmax(90px, 130px) minmax(0, 1fr) 92px; }
     }
   </style>
 </head>
@@ -754,12 +840,15 @@
       pretext: null,
       marked: null,
       hljs: null,
+      tokenizer: null,
+      tokenizerName: "fallback-regex",
       pretextRaf: 0
     };
 
     const PRETEXT_CDN = "https://esm.sh/@chenglou/pretext@0.0.7";
     const MARKED_CDN = "https://esm.sh/marked@18.0.4";
     const HIGHLIGHT_CDN = "https://esm.sh/highlight.js@11.11.1/lib/common";
+    const TIKTOKEN_CDN = "https://esm.sh/js-tiktoken@1.0.21";
     const FONT_SANS = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
     const JSONL_INDEX_CHUNK_SIZE = 4 * 1024 * 1024;
@@ -821,6 +910,17 @@
       }).catch(err => {
         state.hljs = null;
         console.warn("highlight.js import failed", err);
+      });
+
+      import(TIKTOKEN_CDN).then(tiktokenModule => {
+        if (typeof tiktokenModule.getEncoding !== "function") return;
+        state.tokenizer = tiktokenModule.getEncoding("cl100k_base");
+        state.tokenizerName = "tiktoken/cl100k_base";
+        if (state.records.length) renderDetail();
+      }).catch(err => {
+        state.tokenizer = null;
+        state.tokenizerName = "fallback-regex";
+        console.warn("js-tiktoken import failed", err);
       });
     }
 
@@ -1304,6 +1404,163 @@
       if (structured) return structured.text;
       if (typeof value === "string") return prettyJsonText(value);
       return prettyJsonText(value);
+    }
+
+    function tokenCount(value) {
+      const text = String(value ?? "");
+      if (!text) return 0;
+      if (state.tokenizer?.encode) {
+        try {
+          return state.tokenizer.encode(text).length;
+        } catch {
+        }
+      }
+      const matches = text.match(/\w+|[^\w\s]/gu);
+      return matches ? matches.length : 0;
+    }
+
+    function addTokenPart(parts, label, value) {
+      const text = displayText(value);
+      if (!text) return;
+      const tokens = tokenCount(text);
+      if (!tokens) return;
+      parts.push({ label, tokens, chars: text.length });
+    }
+
+    function toolCallText(call) {
+      if (!call || typeof call !== "object") return "";
+      const name = toolNameFromCall(call);
+      const args = toolArgsFromCall(call);
+      return `${name}\n${prettyJsonText(args)}`;
+    }
+
+    function apiUsageFromRow(row) {
+      const meta = row?.meta || {};
+      const metrics = {};
+      for (const candidate of [meta.final_metrics, meta.usage, meta.token_usage, meta.tokens]) {
+        if (candidate && typeof candidate === "object") Object.assign(metrics, candidate);
+      }
+      const prompt = Number(
+        metrics.total_prompt_tokens ??
+        metrics.prompt_tokens ??
+        metrics.input_tokens ??
+        metrics.n_input_tokens ??
+        0
+      ) || 0;
+      const completion = Number(
+        metrics.total_completion_tokens ??
+        metrics.completion_tokens ??
+        metrics.output_tokens ??
+        metrics.n_output_tokens ??
+        0
+      ) || 0;
+      const cached = Number(
+        metrics.total_cached_tokens ??
+        metrics.cached_tokens ??
+        metrics.cache_tokens ??
+        metrics.n_cache_tokens ??
+        metrics.cache_read_input_tokens ??
+        0
+      ) || 0;
+      const cost = Number(metrics.total_cost_usd ?? metrics.cost_usd ?? metrics.cost ?? 0) || 0;
+      const total = Number(metrics.total_tokens ?? metrics.tokens ?? (prompt + completion + cached)) || 0;
+      if (!prompt && !completion && !cached && !cost && !total) return null;
+      return { prompt, completion, cached, total, cost };
+    }
+
+    function tokenReport(row) {
+      const parts = [];
+      for (const message of row.messages || []) {
+        const role = message.role || "unknown";
+        if (role === "assistant") {
+          addTokenPart(parts, "assistant reasoning", message.reasoning_content);
+          addTokenPart(parts, "assistant answer", message.content);
+          for (const call of message.tool_calls || []) addTokenPart(parts, "tool call", toolCallText(call));
+          continue;
+        }
+        if (role === "tool") {
+          addTokenPart(parts, "tool response", message.content);
+          continue;
+        }
+        addTokenPart(parts, role, message.content);
+      }
+      if (Array.isArray(row.tools) && row.tools.length) addTokenPart(parts, "tool schema", row.tools);
+      const byLabel = new Map();
+      for (const part of parts) {
+        const current = byLabel.get(part.label) || { label: part.label, tokens: 0, chars: 0 };
+        current.tokens += part.tokens;
+        current.chars += part.chars;
+        byLabel.set(part.label, current);
+      }
+      const breakdown = Array.from(byLabel.values()).sort((a, b) => b.tokens - a.tokens);
+      const visibleTotal = breakdown.reduce((sum, item) => sum + item.tokens, 0);
+      return {
+        estimator: state.tokenizerName,
+        visibleTotal,
+        messageCount: (row.messages || []).length,
+        toolCallCount: (row.messages || []).reduce((sum, message) => sum + (message.tool_calls?.length || 0), 0),
+        apiUsage: apiUsageFromRow(row),
+        breakdown
+      };
+    }
+
+    function formatNumber(value) {
+      const n = Number(value || 0);
+      return Number.isFinite(n) ? n.toLocaleString("en-US") : "";
+    }
+
+    function percent(value, total) {
+      if (!total) return "0.0%";
+      return `${((value / total) * 100).toFixed(1)}%`;
+    }
+
+    function renderTokenReport(row) {
+      const report = tokenReport(row);
+      const usage = report.apiUsage;
+      const usageTotal = usage?.total || 0;
+      const statItems = [
+        ["visible tokens", formatNumber(report.visibleTotal)],
+        ["messages", formatNumber(report.messageCount)],
+        ["tool calls", formatNumber(report.toolCallCount)],
+        ["api total", usage ? formatNumber(usageTotal) : "n/a"]
+      ];
+      const usageRows = usage ? [
+        { label: "api prompt", tokens: usage.prompt },
+        { label: "api completion", tokens: usage.completion },
+        { label: "api cached", tokens: usage.cached }
+      ].filter(item => item.tokens > 0) : [];
+      const rows = [
+        ...usageRows.map(item => ({ ...item, total: usageTotal, source: "usage" })),
+        ...report.breakdown.map(item => ({ ...item, total: report.visibleTotal, source: "visible" }))
+      ];
+      return `
+        <section class="tokenReport">
+          <div class="tokenReportHead">
+            <span>Token report</span>
+            <span>${escapeHtml(report.estimator)}${usage ? " | API usage from meta" : " | visible trace only"}</span>
+          </div>
+          <div class="tokenSummary">
+            ${statItems.map(([label, value]) => `
+              <div class="tokenStat">
+                <div class="label">${escapeHtml(label)}</div>
+                <div class="value">${escapeHtml(value)}</div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="tokenBreakdown">
+            ${rows.length ? rows.map(item => {
+              const pct = percent(item.tokens, item.total);
+              return `
+                <div class="tokenRow">
+                  <div class="tokenName">${escapeHtml(item.label)}</div>
+                  <div class="tokenBar"><div class="tokenBarFill" style="width:${escapeHtml(pct)}"></div></div>
+                  <div class="tokenValue">${escapeHtml(`${formatNumber(item.tokens)} ${pct}`)}</div>
+                </div>
+              `;
+            }).join("") : `<div class="empty">No tokenizable content.</div>`}
+          </div>
+        </section>
+      `;
     }
 
     function atifStepToMessages(step) {
@@ -2426,6 +2683,7 @@
           <div class="kv"><div class="k">query</div><div class="v">${escapeHtml(b.query_task_name || row.meta?.task_name || "")}</div></div>
           <div class="kv"><div class="k">rank / score</div><div class="v">${escapeHtml(`${b.rank || ""} / ${b.score ?? ""}`)}</div></div>
         </div>
+        ${renderTokenReport(row)}
         ${renderJsonDetails("meta", metaPreview, false)}
         ${renderJsonDetails("tools", row.tools || [], false)}
         ${messageGroups.map(renderMessageGroup).join("")}
