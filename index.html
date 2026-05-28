@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GLM51 JSONL Viewer</title>
+  <link rel="preconnect" href="https://esm.sh">
+  <link rel="preconnect" href="https://tiktoken.pages.dev">
+  <link rel="modulepreload" href="https://esm.sh/@chenglou/pretext@0.0.7">
+  <link rel="modulepreload" href="https://esm.sh/@chenglou/pretext@0.0.7/rich-inline">
+  <link rel="modulepreload" href="https://esm.sh/marked@18.0.4">
+  <link rel="modulepreload" href="https://esm.sh/highlight.js@11.11.1/lib/common">
+  <link rel="modulepreload" href="https://esm.sh/js-tiktoken@1.0.21">
   <style>
     :root {
       color-scheme: light;
@@ -2768,6 +2775,11 @@
     });
     if (document.fonts?.ready) {
       document.fonts.ready.then(schedulePretextLayout).catch(() => {});
+    }
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      navigator.serviceWorker.register("./sw.js").catch(err => {
+        console.warn("Service worker registration failed", err);
+      });
     }
 
     loadPretext();
