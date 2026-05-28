@@ -1,0 +1,2506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GLM51 JSONL Viewer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --line: #d7dce5;
+      --text: #151922;
+      --muted: #667085;
+      --soft: #f2f4f7;
+      --accent: #0d6efd;
+      --green: #0b7b69;
+      --purple: #6f42c1;
+      --warn: #9a6700;
+      --red: #b42318;
+      --code: #111827;
+      --code-bg: #f5f7fa;
+      --selected: #e7f0ff;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+    button, input, select {
+      font: inherit;
+      font-size: 13px;
+    }
+    button, select, input[type="search"], input[type="file"] {
+      height: 36px;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 650;
+      padding: 0 10px;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input[type="file"] { padding: 6px; }
+    input[type="search"] { padding: 0 10px; }
+    select { padding: 0 8px; }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 58px 1fr;
+      min-width: 0;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 180px 180px 140px 140px;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+    .main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 390px minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px;
+    }
+    .pane {
+      min-height: 0;
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+    }
+    .paneHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      min-width: 0;
+    }
+    .paneHead strong {
+      color: var(--text);
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .list {
+      min-height: 0;
+      overflow: auto;
+    }
+    .recordItem {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      cursor: pointer;
+      height: 92px;
+      overflow: hidden;
+    }
+    .recordItem.virtual {
+      position: absolute;
+      left: 0;
+      right: 0;
+    }
+    .recordItem:hover { background: #fbfcfe; }
+    .recordItem.selected { background: var(--selected); }
+    .virtualListInner {
+      position: relative;
+      min-height: 100%;
+    }
+    .recordTitle {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      min-width: 0;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .recordTitle span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1;
+    }
+    .chip.pass { background: var(--green); }
+    .chip.fail { background: var(--warn); }
+    .chip.error { background: var(--red); }
+    .chip.instruct { background: var(--accent); }
+    .chip.thinking { background: var(--purple); }
+    .chip.rank, .chip.model { background: #667085; }
+    .recordMeta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .detail {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px 16px 26px;
+    }
+    .empty {
+      color: var(--muted);
+      padding: 18px;
+    }
+    .topMeta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .kv {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #fbfcfe;
+      min-width: 0;
+    }
+    .kv .k {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+      margin-bottom: 3px;
+    }
+    .kv .v {
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+    details {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text);
+      user-select: none;
+    }
+    details > pre {
+      margin: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+    }
+    details > .codeBlock {
+      margin: 0;
+      border-top: 1px solid var(--line);
+    }
+    details > .codeBlock .codeHead,
+    details > .codeBlock .codePre {
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+    }
+    .message {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin: 12px 0;
+      overflow: hidden;
+      background: #fff;
+    }
+    .messageHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--soft);
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .messageHead .sub {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .messageBody {
+      padding: 10px 12px;
+      overflow-wrap: anywhere;
+    }
+    .role-system .messageHead { color: var(--purple); }
+    .role-user .messageHead { color: var(--accent); }
+    .role-assistant .messageHead { color: var(--green); }
+    .role-tool .messageHead { color: var(--warn); }
+    .reasoningBox {
+      border-left: 3px solid var(--purple);
+      background: #faf7ff;
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      color: #4f2a83;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .messageChunk + .messageChunk {
+      border-top: 1px solid var(--line);
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    .md {
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    .md p { margin: 0 0 10px; }
+    .pretextBlock {
+      display: block;
+      margin: 0;
+      min-width: 0;
+      overflow-wrap: normal;
+    }
+    .pretextLine {
+      display: block;
+      height: var(--pt-line-height, 22px);
+      line-height: var(--pt-line-height, 22px);
+      white-space: pre;
+    }
+    .ptFrag {
+      white-space: pre;
+      letter-spacing: 0;
+    }
+    .ptFrag.is-link {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .ptFrag.is-link:hover { text-decoration: underline; }
+    .ptFrag.is-strong { font-weight: 700; }
+    .ptFrag.is-em { font-style: italic; }
+    .ptFrag.is-del { text-decoration: line-through; }
+    .ptFragCode {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--code);
+      background: var(--code-bg);
+      border: 1px solid #e3e7ee;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    .pretextHeading1 {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 750;
+      line-height: 28px;
+    }
+    .pretextHeading2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 750;
+      line-height: 25px;
+    }
+    .pretextHeading3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 750;
+      line-height: 22px;
+    }
+    .pretextListText,
+    .pretextQuoteText {
+      margin: 0;
+    }
+    .md h1, .md h2, .md h3 {
+      margin: 14px 0 8px;
+      line-height: 1.25;
+    }
+    .md h1 { font-size: 21px; }
+    .md h2 { font-size: 18px; }
+    .md h3 { font-size: 15px; }
+    .md ul, .md ol { margin: 0 0 10px 24px; padding: 0; }
+    .md li { margin: 3px 0; }
+    .md blockquote {
+      margin: 0 0 10px;
+      padding: 6px 10px;
+      border-left: 3px solid var(--line);
+      color: var(--muted);
+      background: #fbfcfe;
+    }
+    .md table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0 0 10px;
+      font-size: 13px;
+    }
+    .md th, .md td {
+      border: 1px solid var(--line);
+      padding: 5px 7px;
+      vertical-align: top;
+    }
+    .md th { background: var(--soft); text-align: left; }
+    code.inline {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+      color: var(--code);
+      background: var(--code-bg);
+      border: 1px solid #e3e7ee;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    pre {
+      margin: 0 0 10px;
+      padding: 10px 12px;
+      overflow: auto;
+      background: var(--code-bg);
+      border: 1px solid #e3e7ee;
+      border-radius: 6px;
+      color: var(--code);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    pre code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+    .codeBlock {
+      margin: 0 0 10px;
+    }
+    .codeHead {
+      margin: 0;
+      padding: 5px 8px;
+      background: #e9edf3;
+      border: 1px solid #e3e7ee;
+      border-bottom: 0;
+      border-radius: 6px 6px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .codePre {
+      margin: 0;
+      padding: 0;
+      border-radius: 0 0 6px 6px;
+    }
+    .codeLines {
+      display: block;
+      min-width: max-content;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+      counter-reset: code-line;
+    }
+    .codeLine {
+      display: flex;
+      align-items: stretch;
+      min-height: 18px;
+      line-height: 1.45;
+      counter-increment: code-line;
+    }
+    .codeLine::before {
+      content: counter(code-line);
+      flex: 0 0 48px;
+      width: 48px;
+      user-select: none;
+      text-align: right;
+      color: #8a94a6;
+      background: #eef2f7;
+      border-right: 1px solid #e3e7ee;
+      padding: 0 9px 0 6px;
+    }
+    .lineText {
+      display: block;
+      min-width: 0;
+      padding: 0 12px;
+      white-space: pre;
+    }
+    .codeLine:first-child::before,
+    .codeLine:first-child .lineText {
+      padding-top: 10px;
+    }
+    .codeLine:last-child::before,
+    .codeLine:last-child .lineText {
+      padding-bottom: 10px;
+    }
+    .toolCall {
+      margin: 10px 0 0;
+      border: 1px solid #ead7a7;
+      border-radius: 6px;
+      background: #fffaf0;
+      overflow: hidden;
+    }
+    .toolCallHead {
+      padding: 7px 9px;
+      border-bottom: 1px solid #ead7a7;
+      font-size: 13px;
+      font-weight: 750;
+      color: var(--warn);
+    }
+    .toolSummary {
+      padding: 7px 9px;
+      background: #fffdf7;
+      border-bottom: 1px solid #ead7a7;
+      color: #3d4756;
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .toolSummary strong {
+      color: var(--warn);
+      font-weight: 750;
+    }
+    .toolResponse {
+      border-top: 1px solid #ead7a7;
+      background: #fffdf7;
+    }
+    .toolResponseHead {
+      padding: 6px 9px;
+      color: #795500;
+      background: #fff6df;
+      border-bottom: 1px solid #ead7a7;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .toolCall pre {
+      border: 0;
+      border-radius: 0;
+      margin: 0;
+      background: #fffdf7;
+    }
+    .toolCall .codeBlock {
+      margin: 0;
+    }
+    .toolCall .codeHead,
+    .toolCall .codePre {
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      background: #fffdf7;
+    }
+    .toolCall .codeHead {
+      border-top: 0;
+      background: #fff6df;
+    }
+    .toolCall .codeLine::before {
+      background: #fff6df;
+      border-right-color: #ead7a7;
+    }
+    .toolCallRaw {
+      border: 0;
+      border-top: 1px solid #ead7a7;
+      border-radius: 0;
+      margin: 0;
+      background: #fffdf7;
+    }
+    .toolCallRaw summary {
+      padding: 6px 9px;
+      color: var(--warn);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .jsonKey { color: #0550ae; }
+    .jsonString { color: #0a7a39; }
+    .jsonNumber { color: #953800; }
+    .jsonBool { color: #8250df; }
+    .jsonNull { color: #6e7781; }
+    .hlComment { color: #6a737d; }
+    .hlString { color: #0a7a39; }
+    .hlKeyword { color: #cf222e; font-weight: 650; }
+    .hlNumber { color: #953800; }
+    .hlFunc { color: #8250df; }
+    .ghDiff {
+      width: 100%;
+      overflow: auto;
+      background: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .ghDiff table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: max-content;
+    }
+    .ghDiff td {
+      padding: 0;
+      white-space: pre;
+      vertical-align: top;
+    }
+    .ghDiffNum {
+      width: 44px;
+      padding: 0 8px !important;
+      color: #8a94a6;
+      text-align: right;
+      user-select: none;
+      border-right: 1px solid #d8dee4;
+      background: #f6f8fa;
+    }
+    .ghDiffMark {
+      width: 24px;
+      padding: 0 8px !important;
+      text-align: center;
+      user-select: none;
+    }
+    .ghDiffCode {
+      padding: 0 12px !important;
+    }
+    .ghDiffAdd .ghDiffNum,
+    .ghDiffAdd .ghDiffMark,
+    .ghDiffAdd .ghDiffCode {
+      background: #e6ffec;
+    }
+    .ghDiffDel .ghDiffNum,
+    .ghDiffDel .ghDiffMark,
+    .ghDiffDel .ghDiffCode {
+      background: #ffebe9;
+    }
+    .ghDiffMeta td {
+      padding: 3px 8px !important;
+      color: #57606a;
+      background: #ddf4ff;
+      font-weight: 650;
+    }
+    .ghSplit {
+      width: 100%;
+      overflow: auto;
+      background: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .ghSplit table {
+      width: 100%;
+      min-width: 860px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .ghSplit td {
+      padding: 0;
+      white-space: pre;
+      vertical-align: top;
+    }
+    .ghSplitMeta td {
+      padding: 3px 8px !important;
+      color: #57606a;
+      background: #ddf4ff;
+      font-weight: 650;
+    }
+    .ghSplitNum {
+      width: 44px;
+      padding: 0 8px !important;
+      color: #8a94a6;
+      text-align: right;
+      user-select: none;
+      border-right: 1px solid #d8dee4;
+      background: #f6f8fa;
+    }
+    .ghSplitMark {
+      width: 24px;
+      padding: 0 8px !important;
+      text-align: center;
+      user-select: none;
+    }
+    .ghSplitCode {
+      padding: 0 12px !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ghSplitDel .ghSplitNum,
+    .ghSplitDel .ghSplitMark,
+    .ghSplitDel .ghSplitCode {
+      background: #ffebe9;
+    }
+    .ghSplitAdd .ghSplitNum,
+    .ghSplitAdd .ghSplitMark,
+    .ghSplitAdd .ghSplitCode {
+      background: #e6ffec;
+    }
+    .hljs-comment,
+    .hljs-quote { color: #6a737d; }
+    .hljs-string,
+    .hljs-regexp,
+    .hljs-symbol,
+    .hljs-bullet { color: #0a7a39; }
+    .hljs-number,
+    .hljs-literal { color: #953800; }
+    .hljs-keyword,
+    .hljs-selector-tag,
+    .hljs-built_in,
+    .hljs-type { color: #cf222e; font-weight: 650; }
+    .hljs-title,
+    .hljs-section,
+    .hljs-function .hljs-title { color: #8250df; }
+    .hljs-attr,
+    .hljs-attribute,
+    .hljs-name,
+    .hljs-variable { color: #0550ae; }
+    @media (max-width: 1000px) {
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100vh; grid-template-rows: auto auto; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .main { grid-template-columns: 1fr; grid-template-rows: 320px minmax(520px, 1fr); }
+      .topMeta { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <input id="fileInput" type="file" accept=".jsonl,.json,.atif,.txt">
+      <input id="searchInput" type="search" placeholder="Search messages/meta">
+      <select id="groupFilter">
+        <option value="all">all records</option>
+        <option value="instruct">instruct only</option>
+        <option value="thinking">thinking only</option>
+      </select>
+      <select id="modelFilter">
+        <option value="all">all models</option>
+      </select>
+      <button id="prevBtn" type="button">Prev</button>
+      <button id="nextBtn" type="button">Next</button>
+    </div>
+    <div class="main">
+      <section class="pane">
+        <div class="paneHead">
+          <strong>Records</strong>
+          <span id="listStatus" class="status">No file loaded</span>
+        </div>
+        <div id="recordList" class="list"></div>
+      </section>
+      <section class="pane">
+        <div class="paneHead">
+          <strong id="detailTitle">Record</strong>
+        <span id="detailStatus" class="status">Load a JSONL/ATIF file</span>
+        </div>
+        <div id="detail" class="detail">
+          <div class="empty">Load a GLM51 SFT JSONL or ATIF trajectory file with the file picker.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      searchInput: document.getElementById("searchInput"),
+      groupFilter: document.getElementById("groupFilter"),
+      modelFilter: document.getElementById("modelFilter"),
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      recordList: document.getElementById("recordList"),
+      detail: document.getElementById("detail"),
+      listStatus: document.getElementById("listStatus"),
+      detailStatus: document.getElementById("detailStatus"),
+      detailTitle: document.getElementById("detailTitle")
+    };
+
+    const state = {
+      records: [],
+      filtered: [],
+      selectedFilteredIndex: 0,
+      selectedRow: null,
+      selectedRowKey: "",
+      file: null,
+      loadMode: "",
+      loadToken: 0,
+      detailLoadSeq: 0,
+      detailCache: new Map(),
+      listRaf: 0,
+      rowHeight: 92,
+      pretextBlocks: new Map(),
+      pretextSeq: 0,
+      pretextStatus: "loading",
+      pretext: null,
+      marked: null,
+      hljs: null,
+      pretextRaf: 0
+    };
+
+    const PRETEXT_CDN = "https://esm.sh/@chenglou/pretext@0.0.7";
+    const MARKED_CDN = "https://esm.sh/marked@18.0.4";
+    const HIGHLIGHT_CDN = "https://esm.sh/highlight.js@11.11.1/lib/common";
+    const FONT_SANS = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    const JSONL_INDEX_CHUNK_SIZE = 4 * 1024 * 1024;
+    const JSONL_DETAIL_CACHE_LIMIT = 24;
+    const PT_VARIANTS = {
+      body: { fontSize: 14, lineHeight: 22, className: "ptFrag", blockClass: "" },
+      h1: { fontSize: 21, lineHeight: 28, className: "ptFrag pretextHeadingFrag", blockClass: "pretextHeading1", weight: 750 },
+      h2: { fontSize: 18, lineHeight: 25, className: "ptFrag pretextHeadingFrag", blockClass: "pretextHeading2", weight: 750 },
+      h3: { fontSize: 15, lineHeight: 22, className: "ptFrag pretextHeadingFrag", blockClass: "pretextHeading3", weight: 750 }
+    };
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    function setPretextStatus(status) {
+      state.pretextStatus = status;
+      if (state.records.length) {
+        els.detailStatus.textContent = `${state.selectedFilteredIndex + 1}/${state.filtered.length} | ${status}`;
+      }
+    }
+
+    function loadPretext() {
+      Promise.all([
+        import(PRETEXT_CDN),
+        import(`${PRETEXT_CDN}/rich-inline`)
+      ]).then(([layout, richInline]) => {
+        state.pretext = {
+          prepareRichInline: richInline.prepareRichInline,
+          walkRichInlineLineRanges: richInline.walkRichInlineLineRanges,
+          materializeRichInlineLineRange: richInline.materializeRichInlineLineRange
+        };
+        setPretextStatus("pretext ready");
+        renderDetail();
+        hydratePretextBlocks();
+      }).catch(err => {
+        state.pretext = null;
+        setPretextStatus("pretext unavailable; using fallback layout");
+        console.warn("Pretext import failed", err);
+      });
+
+      import(MARKED_CDN).then(markedModule => {
+        state.marked = markedModule.marked || markedModule;
+        if (state.records.length) renderDetail();
+      }).catch(err => {
+        state.marked = null;
+        console.warn("Marked import failed", err);
+      });
+
+      import(HIGHLIGHT_CDN).then(highlightModule => {
+        state.hljs = highlightModule.default || highlightModule;
+        if (state.records.length) renderDetail();
+      }).catch(err => {
+        state.hljs = null;
+        console.warn("highlight.js import failed", err);
+      });
+    }
+
+    function schedulePretextLayout() {
+      if (state.pretextRaf) return;
+      state.pretextRaf = requestAnimationFrame(() => {
+        state.pretextRaf = 0;
+        hydratePretextBlocks();
+      });
+    }
+
+    function hydratePretextBlocks(root = els.detail) {
+      if (!state.pretext) return;
+      const blocks = root.querySelectorAll("[data-pretext-id]");
+      blocks.forEach(block => layoutPretextBlock(block));
+    }
+
+    function styleForPiece(piece, variant) {
+      const config = PT_VARIANTS[variant] || PT_VARIANTS.body;
+      const italic = piece.italic ? "italic " : "";
+      const weight = piece.bold ? 700 : (piece.href ? 500 : (config.weight || 400));
+      return `${italic}${weight} ${config.fontSize}px ${piece.code ? FONT_MONO : FONT_SANS}`;
+    }
+
+    function textClassForPiece(piece) {
+      let cls = piece.code ? "ptFrag ptFragCode" : "ptFrag";
+      if (piece.href) cls += " is-link";
+      if (piece.bold) cls += " is-strong";
+      if (piece.italic) cls += " is-em";
+      if (piece.strike) cls += " is-del";
+      return cls;
+    }
+
+    function makeTextPiece(text, marks = {}) {
+      return {
+        text: String(text || ""),
+        bold: Boolean(marks.bold),
+        italic: Boolean(marks.italic),
+        strike: Boolean(marks.strike),
+        href: marks.href || null,
+        code: Boolean(marks.code)
+      };
+    }
+
+    function parseMarkdownHref(href) {
+      if (!href) return null;
+      try {
+        const url = new URL(href, window.location.href);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function inlinePiecesFromTokens(tokens, marks = {}) {
+      const pieces = [];
+      const push = piece => {
+        if (piece && piece.text) pieces.push(piece);
+      };
+      for (const token of tokens || []) {
+        switch (token.type) {
+          case "text":
+          case "escape":
+          case "html":
+            if (token.tokens?.length) {
+              pieces.push(...inlinePiecesFromTokens(token.tokens, marks));
+            } else {
+              push(makeTextPiece(token.text || token.raw || "", marks));
+            }
+            break;
+          case "strong":
+            pieces.push(...inlinePiecesFromTokens(token.tokens || [], { ...marks, bold: true }));
+            break;
+          case "em":
+            pieces.push(...inlinePiecesFromTokens(token.tokens || [], { ...marks, italic: true }));
+            break;
+          case "del":
+            pieces.push(...inlinePiecesFromTokens(token.tokens || [], { ...marks, strike: true }));
+            break;
+          case "codespan":
+            push(makeTextPiece(token.text || "", { ...marks, code: true }));
+            break;
+          case "link":
+            pieces.push(...inlinePiecesFromTokens(token.tokens || [], { ...marks, href: parseMarkdownHref(token.href) }));
+            break;
+          case "image":
+            push(makeTextPiece(token.text || token.href || "image", { ...marks, code: true }));
+            break;
+          case "br":
+            push(makeTextPiece("\n", marks));
+            break;
+          default:
+            if (token.tokens) {
+              pieces.push(...inlinePiecesFromTokens(token.tokens, marks));
+            } else {
+              push(makeTextPiece(token.text || token.raw || "", marks));
+            }
+        }
+      }
+      return mergeAdjacentPieces(pieces);
+    }
+
+    function parseInlinePieces(text) {
+      const src = String(text ?? "");
+      const pieces = [];
+      const pattern = /(!?\[([^\]]*)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(~{2}([^~]+)~{2})/g;
+      let last = 0;
+      let match;
+      while ((match = pattern.exec(src)) !== null) {
+        if (match.index > last) pieces.push(makeTextPiece(src.slice(last, match.index)));
+        if (match[1]) {
+          const label = match[2] || match[3];
+          if (match[1].startsWith("!")) {
+            pieces.push(makeTextPiece(label || "image", { code: true }));
+          } else {
+            pieces.push(makeTextPiece(label, { href: match[3] }));
+          }
+        } else if (match[4]) {
+          pieces.push(makeTextPiece(match[5], { code: true }));
+        } else if (match[6]) {
+          pieces.push(makeTextPiece(match[7], { bold: true }));
+        } else if (match[8]) {
+          pieces.push(makeTextPiece(match[9], { italic: true }));
+        } else if (match[10]) {
+          pieces.push(makeTextPiece(match[11], { strike: true }));
+        }
+        last = pattern.lastIndex;
+      }
+      if (last < src.length) pieces.push(makeTextPiece(src.slice(last)));
+      return pieces.length ? pieces.filter(piece => piece.text.length) : [makeTextPiece(src)];
+    }
+
+    function mergeAdjacentPieces(pieces) {
+      const merged = [];
+      for (const piece of pieces) {
+        if (!piece.text) continue;
+        const prev = merged[merged.length - 1];
+        if (prev && prev.bold === piece.bold && prev.italic === piece.italic && prev.strike === piece.strike && prev.href === piece.href && prev.code === piece.code) {
+          prev.text += piece.text;
+        } else {
+          merged.push({ ...piece });
+        }
+      }
+      return merged;
+    }
+
+    function pretextHtml(text, variant = "body", extraClass = "") {
+      const id = `pt${++state.pretextSeq}`;
+      const config = PT_VARIANTS[variant] || PT_VARIANTS.body;
+      const pieces = mergeAdjacentPieces(parseInlinePieces(text));
+      state.pretextBlocks.set(id, { pieces, variant });
+      const blockClass = ["pretextBlock", config.blockClass, extraClass].filter(Boolean).join(" ");
+      return `<span class="${blockClass}" data-pretext-id="${id}" style="--pt-line-height:${config.lineHeight}px">${renderInline(text)}</span>`;
+    }
+
+    function pretextTokensHtml(tokens, variant = "body", extraClass = "") {
+      const id = `pt${++state.pretextSeq}`;
+      const config = PT_VARIANTS[variant] || PT_VARIANTS.body;
+      const pieces = inlinePiecesFromTokens(tokens);
+      state.pretextBlocks.set(id, { pieces, variant });
+      const blockClass = ["pretextBlock", config.blockClass, extraClass].filter(Boolean).join(" ");
+      return `<span class="${blockClass}" data-pretext-id="${id}" style="--pt-line-height:${config.lineHeight}px">${renderInlinePiecesFallback(pieces)}</span>`;
+    }
+
+    function layoutPretextBlock(block) {
+      const id = block.getAttribute("data-pretext-id");
+      const spec = state.pretextBlocks.get(id);
+      if (!spec || !state.pretext) return;
+      const config = PT_VARIANTS[spec.variant] || PT_VARIANTS.body;
+      const width = Math.max(80, Math.floor(block.getBoundingClientRect().width || block.parentElement?.clientWidth || 600));
+      const items = spec.pieces.map(piece => ({
+        text: piece.text,
+        font: styleForPiece(piece, spec.variant),
+        break: piece.code ? "never" : "normal",
+        extraWidth: piece.code ? 10 : 0
+      }));
+      let prepared;
+      try {
+        prepared = state.pretext.prepareRichInline(items);
+      } catch (err) {
+        console.warn("Pretext prepare failed", err);
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      state.pretext.walkRichInlineLineRanges(prepared, width, range => {
+        const line = state.pretext.materializeRichInlineLineRange(prepared, range);
+        const row = document.createElement("span");
+        row.className = "pretextLine";
+        row.style.setProperty("--pt-line-height", `${config.lineHeight}px`);
+        for (const lineFragment of line.fragments) {
+          const piece = spec.pieces[lineFragment.itemIndex] || {};
+          const node = piece.href ? document.createElement("a") : document.createElement("span");
+          node.className = textClassForPiece(piece);
+          if (lineFragment.gapBefore > 0) node.style.marginLeft = `${lineFragment.gapBefore}px`;
+          node.textContent = lineFragment.text;
+          if (piece.href) {
+            node.href = piece.href;
+            node.target = "_blank";
+            node.rel = "noreferrer";
+          }
+          row.appendChild(node);
+        }
+        fragment.appendChild(row);
+      });
+      block.replaceChildren(fragment);
+    }
+
+    function providerModel(row) {
+      if (row?.__summary?.model) return row.__summary.model;
+      const model = row?.meta?.model || {};
+      return String(model.provider_model || model.model || model.novita_model || row?.meta?.agent?.model_name || "");
+    }
+
+    function isThinking(row) {
+      if (row?.__summary?.thinking !== undefined) return Boolean(row.__summary.thinking);
+      if (row?.chat_template_kwargs?.enable_thinking === true) return true;
+      const thinking = row?.meta?.thinking || {};
+      if (thinking.enable_thinking === true || thinking.has_reasoning_content === true) return true;
+      return (row.messages || []).some(m => m.role === "assistant" && Object.prototype.hasOwnProperty.call(m, "reasoning_content"));
+    }
+
+    function bm25(row) {
+      if (row?.__summary?.bm25) return row.__summary.bm25;
+      return row?.meta?.bm25 || {};
+    }
+
+    function recordTitle(row) {
+      if (row?.__summary?.title) return row.__summary.title;
+      const b = bm25(row);
+      return b.query_task_name || row?.meta?.task_name || row?.meta?.trial || row?.meta?.session_id || "Record";
+    }
+
+    function firstUser(row) {
+      if (row?.__summary?.first_user) return row.__summary.first_user;
+      const msg = (row.messages || []).find(m => m.role === "user");
+      return displayText(msg?.content);
+    }
+
+    function originalKey(row) {
+      if (row?.__summary?.original) return row.__summary.original;
+      const b = bm25(row);
+      if (!b.candidate_dataset && !b.candidate_doc_id) {
+        return row?.meta?.trial || row?.meta?.session_id || "";
+      }
+      return `${b.candidate_dataset || ""} :: ${b.candidate_doc_id || ""}`;
+    }
+
+    function shortText(value, max = 180) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      if (text.length <= max) return text;
+      return text.slice(0, max - 1) + "...";
+    }
+
+    function clippedSearchText(value, max = 1200) {
+      const text = String(value || "");
+      if (text.length <= max) return text;
+      return text.slice(0, max);
+    }
+
+    function rowSearchBlob(row) {
+      if (row?.__summary?.search) return row.__summary.search;
+      const b = bm25(row);
+      return [
+        providerModel(row),
+        row?.meta?.status,
+        b.query_task_name,
+        b.generated_task_name,
+        b.candidate_dataset,
+        b.candidate_source,
+        b.candidate_doc_id,
+        b.candidate_task_id,
+        b.candidate_title,
+        row?.meta?.format,
+        row?.meta?.schema_version,
+        row?.meta?.session_id,
+        row?.meta?.trial,
+        row?.meta?.task_name,
+        firstUser(row),
+        (row.messages || []).map(m => `${m.role} ${displayText(m.content)} ${m.reasoning_content || ""} ${JSON.stringify(m.tool_calls || "")}`).join("\n")
+      ].join("\n").toLowerCase();
+    }
+
+    function rowKey(row, fallback = 0) {
+      if (row?.__key) return row.__key;
+      if (row?.__summary?.key) return row.__summary.key;
+      return `row:${fallback}`;
+    }
+
+    function addCache(key, row) {
+      if (!key || !row) return;
+      state.detailCache.delete(key);
+      state.detailCache.set(key, row);
+      while (state.detailCache.size > JSONL_DETAIL_CACHE_LIMIT) {
+        const firstKey = state.detailCache.keys().next().value;
+        state.detailCache.delete(firstKey);
+      }
+    }
+
+    function resetLoadedState() {
+      state.records = [];
+      state.filtered = [];
+      state.selectedFilteredIndex = 0;
+      state.selectedRow = null;
+      state.selectedRowKey = "";
+      state.file = null;
+      state.loadMode = "";
+      state.detailCache.clear();
+      state.loadToken++;
+      state.detailLoadSeq++;
+      state.pretextBlocks.clear();
+      els.recordList.scrollTop = 0;
+    }
+
+    function rowSummary(row, lineNo, key) {
+      const b = row?.meta?.bm25 || {};
+      const model = (() => {
+        const m = row?.meta?.model || {};
+        return String(m.provider_model || m.model || m.novita_model || row?.meta?.agent?.model_name || "");
+      })();
+      const thinking = (() => {
+        if (row?.chat_template_kwargs?.enable_thinking === true) return true;
+        const t = row?.meta?.thinking || {};
+        if (t.enable_thinking === true || t.has_reasoning_content === true) return true;
+        return (row.messages || []).some(m => m.role === "assistant" && Object.prototype.hasOwnProperty.call(m, "reasoning_content"));
+      })();
+      const first = row?.messages?.find?.(m => m.role === "user");
+      const firstUserText = clippedSearchText(displayText(first?.content), 2000);
+      const title = b.query_task_name || row?.meta?.task_name || row?.meta?.trial || row?.meta?.session_id || `line ${lineNo}`;
+      const original = b.candidate_dataset || b.candidate_doc_id
+        ? `${b.candidate_dataset || ""} :: ${b.candidate_doc_id || ""}`
+        : (row?.meta?.trial || row?.meta?.session_id || "");
+      const search = [
+        model,
+        row?.meta?.status,
+        row?.meta?.format,
+        row?.meta?.schema_version,
+        row?.meta?.session_id,
+        row?.meta?.trial,
+        row?.meta?.task_name,
+        b.query_task_name,
+        b.generated_task_name,
+        b.candidate_dataset,
+        b.candidate_source,
+        b.candidate_doc_id,
+        b.candidate_task_id,
+        b.candidate_title,
+        firstUserText,
+        row?.messages?.slice?.(0, 4).map(m => clippedSearchText(`${m.role} ${displayText(m.content)} ${m.reasoning_content || ""} ${JSON.stringify(m.tool_calls || "")}`, 1000)).join("\n")
+      ].join("\n").toLowerCase();
+      return {
+        key,
+        lineNo,
+        title,
+        status: row?.meta?.status || "",
+        format: row?.meta?.format || "",
+        thinking,
+        model,
+        bm25: {
+          query_task_name: b.query_task_name,
+          generated_task_name: b.generated_task_name,
+          candidate_dataset: b.candidate_dataset,
+          candidate_source: b.candidate_source,
+          candidate_doc_id: b.candidate_doc_id,
+          candidate_task_id: b.candidate_task_id,
+          candidate_title: b.candidate_title,
+          candidate_path: b.candidate_path,
+          rank: b.rank,
+          score: b.score
+        },
+        original,
+        first_user: firstUserText,
+        search
+      };
+    }
+
+    function makeSummaryEntry(row, lineNo, key, start = 0, end = 0) {
+      return {
+        __isSummary: true,
+        __key: key,
+        __lineNo: lineNo,
+        __offsetStart: start,
+        __offsetEnd: end,
+        __summary: rowSummary(row, lineNo, key)
+      };
+    }
+
+    function normalizeAtifToolCall(call, stepId, index) {
+      if (!call || typeof call !== "object") return call;
+      const id = call.tool_call_id || call.id || `step_${stepId || "x"}_call_${index + 1}`;
+      const name = call.function_name || call.name || call.tool_name || call.function?.name || "";
+      const args = call.arguments ?? call.args ?? call.input ?? call.parameters ?? call.function?.arguments ?? {};
+      return {
+        ...call,
+        id,
+        type: call.type || "function",
+        function: {
+          name,
+          arguments: typeof args === "string" ? args : JSON.stringify(args)
+        },
+        tool_call_id: id,
+        function_name: name,
+        arguments: args
+      };
+    }
+
+    function atifObservationResults(observation) {
+      if (!observation) return [];
+      if (Array.isArray(observation.results)) return observation.results;
+      if (Array.isArray(observation)) return observation;
+      return [observation];
+    }
+
+    function observationContent(result) {
+      if (result === undefined || result === null) return "";
+      if (typeof result === "string") return result;
+      if (typeof result.content === "string") {
+        try {
+          const parsed = JSON.parse(result.content);
+          if (Array.isArray(parsed?.content)) {
+            return parsed.content.map(part => {
+              if (typeof part === "string") return part;
+              if (part?.text !== undefined) return String(part.text);
+              return JSON.stringify(part);
+            }).join("");
+          }
+        } catch {
+        }
+        return result.content;
+      }
+      if (Array.isArray(result.content)) {
+        return result.content.map(part => {
+          if (typeof part === "string") return part;
+          if (part?.text !== undefined) return String(part.text);
+          return JSON.stringify(part);
+        }).join("");
+      }
+      return JSON.stringify(result, null, 2);
+    }
+
+    function structuredTextContent(value) {
+      let parsed = value;
+      if (typeof value === "string") {
+        try {
+          parsed = JSON.parse(value);
+        } catch {
+          return null;
+        }
+      }
+      if (!parsed || typeof parsed !== "object") return null;
+      const content = parsed.content;
+      if (!Array.isArray(content)) return null;
+      const text = content.map(part => {
+        if (typeof part === "string") return part;
+        if (part?.type === "text" && part.text !== undefined) return String(part.text);
+        if (part?.text !== undefined) return String(part.text);
+        return "";
+      }).join("");
+      if (!text && content.length) return null;
+      return { text, raw: parsed };
+    }
+
+    function prettyJsonText(value) {
+      if (value === undefined || value === null) return "";
+      if (typeof value === "string") {
+        try {
+          return JSON.stringify(JSON.parse(value), null, 2);
+        } catch {
+          return value;
+        }
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+
+    function displayText(value) {
+      if (value === undefined || value === null) return "";
+      const structured = structuredTextContent(value);
+      if (structured) return structured.text;
+      if (typeof value === "string") return prettyJsonText(value);
+      return prettyJsonText(value);
+    }
+
+    function atifStepToMessages(step) {
+      if (!step || typeof step !== "object") return [];
+      const source = String(step.source || "").toLowerCase();
+      const role = source === "agent" || source === "assistant" ? "assistant" : (source === "tool" ? "tool" : "user");
+      const messages = [];
+      const message = {
+        role,
+        content: String(step.message ?? "")
+      };
+      if (step.model_name) message.name = String(step.model_name);
+      if (step.reasoning_content !== undefined && step.reasoning_content !== null) {
+        message.reasoning_content = String(step.reasoning_content);
+      }
+      if (Array.isArray(step.tool_calls) && step.tool_calls.length) {
+        message.tool_calls = step.tool_calls.map((call, index) => normalizeAtifToolCall(call, step.step_id, index));
+      }
+      messages.push(message);
+
+      const results = atifObservationResults(step.observation);
+      results.forEach((result, index) => {
+        const pairedCall = message.tool_calls?.[index];
+        const toolCallId = result?.source_call_id || result?.tool_call_id || pairedCall?.id || pairedCall?.tool_call_id || "";
+        messages.push({
+          role: "tool",
+          name: result?.name || result?.function_name || pairedCall?.function?.name || pairedCall?.function_name || "",
+          tool_call_id: toolCallId,
+          content: observationContent(result),
+          raw_content: result
+        });
+      });
+      return messages;
+    }
+
+    function isAtifObject(value) {
+      return Boolean(value && typeof value === "object" && Array.isArray(value.steps) && (value.schema_version || value.agent || value.final_metrics));
+    }
+
+    function normalizeAtifRecord(atif, source = {}) {
+      const row = {
+        messages: (atif.steps || []).flatMap(atifStepToMessages),
+        tools: [],
+        chat_template_kwargs: {
+          enable_thinking: (atif.steps || []).some(step => String(step.reasoning_content || "").trim())
+        },
+        meta: {
+          format: "atif",
+          schema_version: atif.schema_version,
+          session_id: atif.session_id,
+          status: source.status || "atif",
+          agent: atif.agent || {},
+          model: {
+            provider_model: atif.agent?.model_name || source.model_name || ""
+          },
+          thinking: {
+            enable_thinking: (atif.steps || []).some(step => String(step.reasoning_content || "").trim()),
+            has_reasoning_content: (atif.steps || []).some(step => Object.prototype.hasOwnProperty.call(step, "reasoning_content"))
+          },
+          final_metrics: atif.final_metrics || {},
+          job: source.job,
+          mode: source.mode,
+          trial: source.trial,
+          task_name: source.task_name
+        }
+      };
+      return row;
+    }
+
+    function normalizeLoadedRow(row) {
+      if (row?.atif && isAtifObject(row.atif)) return normalizeAtifRecord(row.atif, row);
+      if (isAtifObject(row)) return normalizeAtifRecord(row);
+      if (row && typeof row === "object") return row;
+      return { messages: [{ role: "user", content: JSON.stringify(row, null, 2) }], meta: { format: "json", status: "raw" } };
+    }
+
+    function finalizeLoadedRow(row, lineNo) {
+      const normalized = normalizeLoadedRow(row);
+      normalized.messages = Array.isArray(normalized.messages) ? normalized.messages : [];
+      normalized.meta = normalized.meta || {};
+      normalized.__lineNo = lineNo;
+      normalized.__key = normalized.__key || `full:${lineNo}`;
+      normalized.__search = rowSearchBlob(normalized);
+      return normalized;
+    }
+
+    function finalizeDetailRow(row, entry) {
+      const normalized = finalizeLoadedRow(row, entry.__lineNo || 1);
+      normalized.__key = rowKey(entry, entry.__lineNo || 1);
+      normalized.__offsetStart = entry.__offsetStart;
+      normalized.__offsetEnd = entry.__offsetEnd;
+      normalized.__summary = entry.__summary || rowSummary(normalized, normalized.__lineNo, normalized.__key);
+      normalized.__search = normalized.__summary.search || rowSearchBlob(normalized);
+      return normalized;
+    }
+
+    function parseRecords(text) {
+      const rows = [];
+      const errors = [];
+      const trimmed = String(text || "").trim();
+      if (!trimmed) return { rows, errors };
+      try {
+        const parsed = JSON.parse(trimmed);
+        const rawRows = Array.isArray(parsed) && !isAtifObject(parsed) ? parsed : [parsed];
+        rawRows.forEach((row, index) => rows.push(finalizeLoadedRow(row, index + 1)));
+        return { rows, errors };
+      } catch {
+      }
+
+      const lines = String(text || "").split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try {
+          rows.push(finalizeLoadedRow(JSON.parse(line), i + 1));
+        } catch (err) {
+          errors.push(`line ${i + 1}: ${err.message}`);
+        }
+      }
+      return { rows, errors };
+    }
+
+    function readBlobText(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("Read failed"));
+        reader.readAsText(blob);
+      });
+    }
+
+    function readFileHead(file, bytes = 4096) {
+      return readBlobText(file.slice(0, Math.min(file.size, bytes)));
+    }
+
+    function resetForRecords(records, mode, file = null) {
+      state.records = records;
+      state.filtered = records;
+      state.selectedFilteredIndex = 0;
+      state.selectedRow = null;
+      state.selectedRowKey = "";
+      state.file = file;
+      state.loadMode = mode;
+      state.detailCache.clear();
+      els.recordList.scrollTop = 0;
+      refreshModelFilter();
+      applyFilters();
+    }
+
+    async function indexJsonlFile(file, token) {
+      const decoder = new TextDecoder();
+      const records = [];
+      const errors = [];
+      let offset = 0;
+      let carry = new Uint8Array(0);
+      let carryStart = 0;
+      let lineNo = 0;
+
+      function concatBytes(a, b) {
+        if (!a.length) return b;
+        const out = new Uint8Array(a.length + b.length);
+        out.set(a, 0);
+        out.set(b, a.length);
+        return out;
+      }
+
+      function consumeLine(bytes, start, end) {
+        lineNo++;
+        let slice = bytes;
+        if (slice.length && slice[slice.length - 1] === 13) slice = slice.slice(0, -1);
+        const line = decoder.decode(slice);
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        try {
+          const normalized = normalizeLoadedRow(JSON.parse(trimmed));
+          normalized.messages = Array.isArray(normalized.messages) ? normalized.messages : [];
+          normalized.meta = normalized.meta || {};
+          records.push(makeSummaryEntry(normalized, lineNo, `jsonl:${lineNo}:${start}`, start, end));
+        } catch (err) {
+          errors.push(`line ${lineNo}: ${err.message}`);
+        }
+      }
+
+      while (offset < file.size) {
+        if (token !== state.loadToken) return { rows: [], errors: ["load cancelled"] };
+        const end = Math.min(file.size, offset + JSONL_INDEX_CHUNK_SIZE);
+        const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
+        let bytes = chunk;
+        let base = offset;
+        if (carry.length) {
+          bytes = concatBytes(carry, chunk);
+          base = carryStart;
+          carry = new Uint8Array(0);
+        }
+        let lineStart = 0;
+        for (let i = 0; i < bytes.length; i++) {
+          if (bytes[i] !== 10) continue;
+          const start = base + lineStart;
+          const lineEnd = base + i + 1;
+          consumeLine(bytes.slice(lineStart, i), start, lineEnd);
+          lineStart = i + 1;
+        }
+        if (lineStart < bytes.length) {
+          carry = bytes.slice(lineStart);
+          carryStart = base + lineStart;
+        }
+        offset = end;
+        if (records.length && records.length % 500 === 0) {
+          els.listStatus.textContent = `Indexing ${records.length} records...`;
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      if (carry.length) consumeLine(carry, carryStart, file.size);
+      return { rows: records, errors };
+    }
+
+    async function loadJsonFile(file, token) {
+      const text = await readBlobText(file);
+      if (token !== state.loadToken) return { rows: [], errors: ["load cancelled"] };
+      return parseRecords(text);
+    }
+
+    async function loadSelectedRow(entry) {
+      const key = rowKey(entry, state.selectedFilteredIndex + 1);
+      if (!entry?.__isSummary || state.loadMode !== "jsonl-lazy") {
+        state.selectedRow = entry || null;
+        state.selectedRowKey = key;
+        renderDetail();
+        return;
+      }
+      if (state.detailCache.has(key)) {
+        state.selectedRow = state.detailCache.get(key);
+        state.selectedRowKey = key;
+        renderDetail();
+        return;
+      }
+      const seq = ++state.detailLoadSeq;
+      state.selectedRow = null;
+      state.selectedRowKey = key;
+      renderDetailLoading(entry);
+      try {
+        const text = await readBlobText(state.file.slice(entry.__offsetStart, entry.__offsetEnd));
+        if (seq !== state.detailLoadSeq) return;
+        const parsed = JSON.parse(text.trim());
+        const row = finalizeDetailRow(parsed, entry);
+        addCache(key, row);
+        state.selectedRow = row;
+        renderDetail();
+      } catch (err) {
+        if (seq !== state.detailLoadSeq) return;
+        renderDetailError(entry, err);
+      }
+    }
+
+    function refreshModelFilter() {
+      const current = els.modelFilter.value;
+      const models = Array.from(new Set(state.records.map(providerModel).filter(Boolean))).sort();
+      els.modelFilter.innerHTML = `<option value="all">all models</option>${models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("")}`;
+      if (models.includes(current)) els.modelFilter.value = current;
+    }
+
+    function applyFilters() {
+      const query = els.searchInput.value.trim().toLowerCase();
+      const group = els.groupFilter.value;
+      const model = els.modelFilter.value;
+      state.filtered = state.records.filter(row => {
+        if (group === "instruct" && isThinking(row)) return false;
+        if (group === "thinking" && !isThinking(row)) return false;
+        if (model !== "all" && providerModel(row) !== model) return false;
+        if (query && !rowSearchBlob(row).includes(query)) return false;
+        return true;
+      });
+      state.selectedFilteredIndex = Math.min(state.selectedFilteredIndex, Math.max(0, state.filtered.length - 1));
+      if (state.selectedFilteredIndex < 0) state.selectedFilteredIndex = 0;
+      state.selectedRow = null;
+      state.selectedRowKey = "";
+      renderList();
+      loadSelectedRow(currentRow());
+    }
+
+    function currentRow() {
+      return state.filtered[state.selectedFilteredIndex] || null;
+    }
+
+    function chip(text, cls) {
+      return `<span class="chip ${cls || ""}">${escapeHtml(text)}</span>`;
+    }
+
+    function renderListItem(row, index) {
+      const b = bm25(row);
+      const item = document.createElement("div");
+      const selected = index === state.selectedFilteredIndex;
+      item.className = `recordItem virtual${selected ? " selected" : ""}`;
+      item.dataset.index = String(index);
+      item.style.transform = `translateY(${index * state.rowHeight}px)`;
+      item.innerHTML = `
+        <div class="recordTitle"><span>#${index + 1}</span><span>${escapeHtml(shortText(recordTitle(row), 90))}</span></div>
+        <div class="chips">
+          ${chip(row.__summary?.status || row.meta?.status || "?", row.__summary?.status || row.meta?.status || "")}
+          ${chip(isThinking(row) ? "thinking" : "instruct", isThinking(row) ? "thinking" : "instruct")}
+          ${b.rank ? chip(`r${b.rank}`, "rank") : chip(row.__summary?.format || row.meta?.format || "record", "rank")}
+          ${chip(shortText(providerModel(row), 32), "model")}
+        </div>
+        <div class="recordMeta">${escapeHtml(shortText(b.candidate_dataset || b.candidate_doc_id ? `${b.candidate_dataset || ""} / ${b.candidate_doc_id || ""}` : originalKey(row), 160))}</div>
+      `;
+      item.addEventListener("click", () => selectIndex(index));
+      return item;
+    }
+
+    function scheduleListRender() {
+      if (state.listRaf) return;
+      state.listRaf = requestAnimationFrame(() => {
+        state.listRaf = 0;
+        renderList();
+      });
+    }
+
+    function renderList() {
+      els.recordList.innerHTML = "";
+      if (!state.filtered.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = state.records.length ? "No records match the filters." : "Load a JSONL or ATIF file with the file picker.";
+        els.recordList.appendChild(empty);
+      } else {
+        const inner = document.createElement("div");
+        inner.className = "virtualListInner";
+        inner.style.height = `${state.filtered.length * state.rowHeight}px`;
+        const scrollTop = els.recordList.scrollTop || 0;
+        const viewport = els.recordList.clientHeight || 600;
+        const start = Math.max(0, Math.floor(scrollTop / state.rowHeight) - 6);
+        const end = Math.min(state.filtered.length, Math.ceil((scrollTop + viewport) / state.rowHeight) + 6);
+        const frag = document.createDocumentFragment();
+        for (let index = start; index < end; index++) {
+          frag.appendChild(renderListItem(state.filtered[index], index));
+        }
+        inner.appendChild(frag);
+        els.recordList.appendChild(inner);
+      }
+      els.listStatus.textContent = `${state.filtered.length} / ${state.records.length}`;
+      els.prevBtn.disabled = !state.filtered.length || state.selectedFilteredIndex <= 0;
+      els.nextBtn.disabled = !state.filtered.length || state.selectedFilteredIndex >= state.filtered.length - 1;
+    }
+
+    function selectIndex(index) {
+      if (!state.filtered.length) return;
+      state.selectedFilteredIndex = Math.max(0, Math.min(index, state.filtered.length - 1));
+      renderList();
+      const top = state.selectedFilteredIndex * state.rowHeight;
+      const bottom = top + state.rowHeight;
+      if (top < els.recordList.scrollTop) els.recordList.scrollTop = top;
+      if (bottom > els.recordList.scrollTop + els.recordList.clientHeight) {
+        els.recordList.scrollTop = Math.max(0, bottom - els.recordList.clientHeight);
+      }
+      loadSelectedRow(currentRow());
+    }
+
+    function renderInline(text) {
+      let html = escapeHtml(text);
+      html = html.replace(/`([^`]+)`/g, (_, code) => `<code class="inline">${code}</code>`);
+      html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, `<a href="$2" target="_blank" rel="noreferrer">$1</a>`);
+      return html;
+    }
+
+    function renderInlinePiecesFallback(pieces) {
+      return (pieces || []).map(piece => {
+        const content = escapeHtml(piece.text);
+        if (piece.code) return `<code class="inline">${content}</code>`;
+        let html = content;
+        if (piece.bold) html = `<strong>${html}</strong>`;
+        if (piece.italic) html = `<em>${html}</em>`;
+        if (piece.strike) html = `<del>${html}</del>`;
+        if (piece.href) html = `<a href="${escapeHtml(piece.href)}" target="_blank" rel="noreferrer">${html}</a>`;
+        return html;
+      }).join("");
+    }
+
+    function isTable(lines, i) {
+      return i + 1 < lines.length && /\|/.test(lines[i]) && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[i + 1]);
+    }
+
+    function renderTable(lines, start) {
+      const split = line => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
+      const headers = split(lines[start]);
+      const rows = [];
+      let i = start + 2;
+      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) {
+        rows.push(split(lines[i]));
+        i++;
+      }
+      const head = headers.map(h => `<th>${renderInline(h)}</th>`).join("");
+      const body = rows.map(row => `<tr>${row.map(c => `<td>${renderInline(c)}</td>`).join("")}</tr>`).join("");
+      return { html: `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`, next: i };
+    }
+
+    function codeBlockHtml(code, lang = "") {
+      const safeLang = lang ? escapeHtml(lang) : "code";
+      return `
+        <div class="codeBlock">
+          <div class="codeHead">${safeLang}</div>
+          <pre class="codePre"><code class="codeLines">${numberedCodeHtml(code, lang)}</code></pre>
+        </div>
+      `;
+    }
+
+    function renderMarkdown(text) {
+      if (state.marked?.lexer) {
+        try {
+          const tokens = state.marked.lexer(String(text ?? ""), { gfm: true, breaks: false });
+          return renderMarkedTokens(tokens);
+        } catch (err) {
+          console.warn("Marked render failed; falling back to simple markdown parser", err);
+        }
+      }
+      return renderSimpleMarkdown(text);
+    }
+
+    function renderMarkedTokens(tokens) {
+      const out = [];
+      for (const token of tokens || []) {
+        switch (token.type) {
+          case "space":
+          case "def":
+            break;
+          case "heading": {
+            const level = Math.min(3, Math.max(1, token.depth || 1));
+            out.push(`<h${level}>${pretextTokensHtml(token.tokens || [{ type: "text", text: token.text || "" }], `h${level}`)}</h${level}>`);
+            break;
+          }
+          case "paragraph":
+            out.push(`<p>${pretextTokensHtml(token.tokens || [{ type: "text", text: token.text || "" }], "body")}</p>`);
+            break;
+          case "code":
+            out.push(codeBlockHtml(token.text || "", token.lang || ""));
+            break;
+          case "blockquote":
+            out.push(`<blockquote>${renderMarkedTokens(token.tokens || [])}</blockquote>`);
+            break;
+          case "list":
+            out.push(renderMarkedList(token));
+            break;
+          case "table":
+            out.push(renderMarkedTable(token));
+            break;
+          case "hr":
+            out.push("<hr>");
+            break;
+          case "html":
+            out.push(codeBlockHtml(token.raw || token.text || "", "html"));
+            break;
+          default:
+            if (token.tokens) {
+              out.push(renderMarkedTokens(token.tokens));
+            } else if (token.text || token.raw) {
+              out.push(`<p>${pretextHtml(token.text || token.raw, "body")}</p>`);
+            }
+        }
+      }
+      return `<div class="md">${out.join("")}</div>`;
+    }
+
+    function renderMarkedList(token) {
+      const tag = token.ordered ? "ol" : "ul";
+      const start = token.ordered && token.start ? ` start="${escapeHtml(token.start)}"` : "";
+      const items = (token.items || []).map(item => {
+        const checkbox = item.task ? `<input type="checkbox" disabled ${item.checked ? "checked" : ""}> ` : "";
+        return `<li>${checkbox}${renderListItemContents(item)}</li>`;
+      }).join("");
+      return `<${tag}${start}>${items}</${tag}>`;
+    }
+
+    function renderListItemContents(item) {
+      const tokens = (item.tokens || []).filter(token => token.type !== "checkbox");
+      if (tokens.length === 1 && tokens[0].type === "text") {
+        return pretextTokensHtml(tokens[0].tokens || [{ type: "text", text: tokens[0].text || item.text || "" }], "body", "pretextListText");
+      }
+      if (tokens.length === 1 && tokens[0].type === "paragraph") {
+        return pretextTokensHtml(tokens[0].tokens || [{ type: "text", text: tokens[0].text || item.text || "" }], "body", "pretextListText");
+      }
+      return renderMarkedTokens(tokens).replace(/^<div class="md">/, "").replace(/<\/div>$/, "");
+    }
+
+    function renderMarkedTable(token) {
+      const align = token.align || [];
+      const cellAttrs = index => align[index] ? ` style="text-align:${escapeHtml(align[index])}"` : "";
+      const header = (token.header || []).map((cell, i) => `<th${cellAttrs(i)}>${renderInlinePiecesFallback(inlinePiecesFromTokens(cell.tokens || [{ type: "text", text: cell.text || "" }]))}</th>`).join("");
+      const rows = (token.rows || []).map(row => {
+        return `<tr>${row.map((cell, i) => `<td${cellAttrs(i)}>${renderInlinePiecesFallback(inlinePiecesFromTokens(cell.tokens || [{ type: "text", text: cell.text || "" }]))}</td>`).join("")}</tr>`;
+      }).join("");
+      return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function renderSimpleMarkdown(text) {
+      const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+      const out = [];
+      let paragraph = [];
+      let list = null;
+      let quote = [];
+      let inFence = false;
+      let fenceLang = "";
+      let fence = [];
+
+      function flushParagraph() {
+        if (paragraph.length) {
+          out.push(`<p>${pretextHtml(paragraph.join(" "), "body")}</p>`);
+          paragraph = [];
+        }
+      }
+      function flushList() {
+        if (list) {
+          out.push(`<${list.type}>${list.items.map(item => `<li>${pretextHtml(item, "body", "pretextListText")}</li>`).join("")}</${list.type}>`);
+          list = null;
+        }
+      }
+      function flushQuote() {
+        if (quote.length) {
+          out.push(`<blockquote>${quote.map(q => `<p>${pretextHtml(q, "body", "pretextQuoteText")}</p>`).join("")}</blockquote>`);
+          quote = [];
+        }
+      }
+      function flushAll() {
+        flushParagraph();
+        flushList();
+        flushQuote();
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const fenceMatch = line.match(/^```([A-Za-z0-9_.+-]*)\s*$/);
+        if (fenceMatch) {
+          if (inFence) {
+            out.push(codeBlockHtml(fence.join("\n"), fenceLang));
+            fence = [];
+            fenceLang = "";
+            inFence = false;
+          } else {
+            flushAll();
+            inFence = true;
+            fenceLang = fenceMatch[1] || "";
+          }
+          continue;
+        }
+        if (inFence) {
+          fence.push(line);
+          continue;
+        }
+        if (!line.trim()) {
+          flushAll();
+          continue;
+        }
+        if (isTable(lines, i)) {
+          flushAll();
+          const table = renderTable(lines, i);
+          out.push(table.html);
+          i = table.next - 1;
+          continue;
+        }
+        const hr = line.match(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/);
+        if (hr) {
+          flushAll();
+          out.push("<hr>");
+          continue;
+        }
+        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          flushAll();
+          const level = heading[1].length;
+          out.push(`<h${level}>${pretextHtml(heading[2], `h${level}`)}</h${level}>`);
+          continue;
+        }
+        const quoteMatch = line.match(/^\s*>\s?(.*)$/);
+        if (quoteMatch) {
+          flushParagraph();
+          flushList();
+          quote.push(quoteMatch[1]);
+          continue;
+        }
+        const ul = line.match(/^\s*[-*+]\s+(.+)$/);
+        if (ul) {
+          flushParagraph();
+          flushQuote();
+          if (!list || list.type !== "ul") {
+            flushList();
+            list = { type: "ul", items: [] };
+          }
+          list.items.push(ul[1]);
+          continue;
+        }
+        const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
+        if (ol) {
+          flushParagraph();
+          flushQuote();
+          if (!list || list.type !== "ol") {
+            flushList();
+            list = { type: "ol", items: [] };
+          }
+          list.items.push(ol[1]);
+          continue;
+        }
+        flushList();
+        flushQuote();
+        paragraph.push(line.trim());
+      }
+      if (inFence) out.push(codeBlockHtml(fence.join("\n"), fenceLang));
+      flushAll();
+      return `<div class="md">${out.join("")}</div>`;
+    }
+
+    function highlightJsonText(text) {
+      const safe = escapeHtml(text);
+      return safe.replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, (match, str, colon, bool) => {
+        if (str && colon) return `<span class="jsonKey">${str}</span>${colon}`;
+        if (str) return `<span class="jsonString">${str}</span>`;
+        if (bool) return `<span class="jsonBool">${bool}</span>`;
+        if (match === "null") return `<span class="jsonNull">null</span>`;
+        return `<span class="jsonNumber">${match}</span>`;
+      });
+    }
+
+    function looksJson(text) {
+      const trimmed = String(text || "").trim();
+      if (!trimmed) return false;
+      return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
+    }
+
+    function normalizeCodeLang(lang = "") {
+      const lower = String(lang || "").trim().toLowerCase();
+      if (!lower) return "";
+      if (["sh", "shell", "zsh"].includes(lower)) return "bash";
+      if (["js", "jsx"].includes(lower)) return "javascript";
+      if (["ts", "tsx"].includes(lower)) return "typescript";
+      if (["py"].includes(lower)) return "python";
+      if (["yml"].includes(lower)) return "yaml";
+      return lower;
+    }
+
+    function langFromPath(path = "") {
+      const clean = String(path || "").split("?")[0].toLowerCase();
+      const ext = clean.includes(".") ? clean.slice(clean.lastIndexOf(".") + 1) : "";
+      const map = {
+        js: "javascript",
+        jsx: "javascript",
+        ts: "typescript",
+        tsx: "typescript",
+        py: "python",
+        sh: "bash",
+        bash: "bash",
+        zsh: "bash",
+        json: "json",
+        jsonl: "json",
+        md: "markdown",
+        yaml: "yaml",
+        yml: "yaml",
+        toml: "ini",
+        ini: "ini",
+        css: "css",
+        html: "html",
+        xml: "xml",
+        rs: "rust",
+        go: "go",
+        java: "java",
+        c: "c",
+        h: "c",
+        cpp: "cpp",
+        cc: "cpp",
+        hpp: "cpp",
+        r: "r",
+        sql: "sql",
+        dockerfile: "dockerfile"
+      };
+      if (clean.endsWith("dockerfile")) return "dockerfile";
+      return map[ext] || "text";
+    }
+
+    function splitCodeLines(code) {
+      const lines = String(code ?? "").replace(/\r\n/g, "\n").split("\n");
+      if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+      return lines.length ? lines : [""];
+    }
+
+    function numberedCodeHtml(code, lang = "") {
+      return splitCodeLines(code).map(line => {
+        return `<span class="codeLine"><span class="lineText">${highlightCodeLine(line, lang) || " "}</span></span>`;
+      }).join("");
+    }
+
+    function highlightCodeLine(line, lang = "") {
+      const lower = normalizeCodeLang(lang);
+      if (lower === "diff") return escapeHtml(line);
+      if (state.hljs?.highlight && lower && state.hljs.getLanguage?.(lower)) {
+        try {
+          return state.hljs.highlight(String(line ?? ""), { language: lower, ignoreIllegals: true }).value;
+        } catch {
+        }
+      }
+      return highlightCode(line, lang);
+    }
+
+    function highlightCode(code, lang = "") {
+      const lower = normalizeCodeLang(lang);
+      if (lower === "diff") return escapeHtml(code);
+      if (lower === "json" || looksJson(code)) {
+        try {
+          const pretty = JSON.stringify(JSON.parse(code), null, 2);
+          if (state.hljs?.highlight) return state.hljs.highlight(pretty, { language: "json", ignoreIllegals: true }).value;
+          return highlightJsonText(pretty);
+        } catch {
+          return highlightJsonText(code);
+        }
+      }
+      if (state.hljs?.highlight) {
+        try {
+          const language = lower && state.hljs.getLanguage?.(lower) ? lower : "";
+          if (language) return state.hljs.highlight(String(code ?? ""), { language, ignoreIllegals: true }).value;
+          return state.hljs.highlightAuto(String(code ?? "")).value;
+        } catch {
+        }
+      }
+      let safe = escapeHtml(code);
+      if (["bash", "sh", "shell", "zsh"].includes(lower)) {
+        safe = safe.replace(/(^|\s)(#.*)$/gm, '$1<span class="hlComment">$2</span>');
+        safe = safe.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, '<span class="hlString">$1</span>');
+        safe = safe.replace(/\b(cd|ls|cat|grep|rg|find|sed|awk|Rscript|python|python3|pip|uv|npm|node|git|mkdir|rm|cp|mv|chmod|tar|curl|wget|echo|export|source|test|if|then|else|elif|fi|for|while|do|done|case|esac|function|set)\b/g, '<span class="hlKeyword">$1</span>');
+        safe = safe.replace(/\b\d+(?:\.\d+)?\b/g, '<span class="hlNumber">$&</span>');
+        return safe;
+      }
+      safe = safe.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, '<span class="hlString">$1</span>');
+      safe = safe.replace(/(^|\s)(#.*)$/gm, '$1<span class="hlComment">$2</span>');
+      safe = safe.replace(/\b(function|def|class|return|if|else|elif|for|while|try|except|import|from|const|let|var|async|await|true|false|null|None|with|as)\b/g, '<span class="hlKeyword">$1</span>');
+      safe = safe.replace(/\b\d+(?:\.\d+)?\b/g, '<span class="hlNumber">$&</span>');
+      return safe;
+    }
+
+    function renderCodeOrMarkdown(text, { markdown = true, forceCode = false, lang = "" } = {}) {
+      const shown = displayText(text);
+      if (forceCode) return codeBlockHtml(shown, lang || (looksJson(shown) ? "json" : ""));
+      if (looksJson(shown)) return codeBlockHtml(shown, "json");
+      if (!markdown) return codeBlockHtml(shown, lang || "text");
+      return renderMarkdown(shown);
+    }
+
+    function renderJsonDetails(title, value, open = false) {
+      const json = JSON.stringify(value, null, 2);
+      return `<details ${open ? "open" : ""}><summary>${escapeHtml(title)}</summary>${codeBlockHtml(json, "json")}</details>`;
+    }
+
+    function normalizeToolArgs(args) {
+      if (typeof args !== "string") return args || {};
+      try {
+        return JSON.parse(args);
+      } catch {
+        return { raw: args };
+      }
+    }
+
+    function toolNameFromCall(call) {
+      const fn = call.function || {};
+      return String(fn.name || call.name || call.function_name || call.tool_name || "");
+    }
+
+    function toolArgsFromCall(call) {
+      const fn = call.function || {};
+      return normalizeToolArgs(
+        fn.arguments ??
+        call.arguments ??
+        call.args ??
+        call.input ??
+        call.parameters ??
+        {}
+      );
+    }
+
+    function canonicalToolName(name) {
+      const lower = String(name || "").toLowerCase();
+      if (["shell", "sh", "terminal"].includes(lower)) return "bash";
+      if (["open", "view", "cat"].includes(lower)) return "read";
+      if (["modify", "replace", "str_replace", "edit_file", "apply_patch"].includes(lower)) return "edit";
+      if (["create", "save", "create_file", "write_file"].includes(lower)) return "write";
+      return lower;
+    }
+
+    function bashCommandFromArgs(args) {
+      if (!args || typeof args !== "object") return "";
+      return String(args.command ?? args.cmd ?? args.script ?? "");
+    }
+
+    function argValue(args, names) {
+      if (!args || typeof args !== "object") return "";
+      for (const name of names) {
+        if (args[name] !== undefined && args[name] !== null) return String(args[name]);
+      }
+      return "";
+    }
+
+    function pathFromArgs(args) {
+      return argValue(args, ["path", "file_path", "filepath", "file", "target_file", "filename"]);
+    }
+
+    function writeContentFromArgs(args) {
+      return argValue(args, [
+        "content",
+        "text",
+        "data",
+        "new_content",
+        "newContent",
+        "file_content",
+        "fileContent",
+        "contents",
+        "body",
+        "value"
+      ]);
+    }
+
+    function readRangeFromArgs(args) {
+      const start = argValue(args, ["start", "start_line", "line_start", "offset"]);
+      const end = argValue(args, ["end", "end_line", "line_end", "limit"]);
+      if (start && end) return `${start}-${end}`;
+      return start || end || "";
+    }
+
+    function editItemsFromArgs(args) {
+      if (!args || typeof args !== "object") return [];
+      if (Array.isArray(args.edits)) return args.edits;
+      if (Array.isArray(args.replacements)) return args.replacements;
+      return [args];
+    }
+
+    function editTextPair(item) {
+      return {
+        oldText: argValue(item, ["old_string", "old_str", "oldText", "old_text", "old", "find", "search"]),
+        newText: argValue(item, ["new_string", "new_str", "newText", "new_text", "new", "replace", "replacement"])
+      };
+    }
+
+    function editLocationFromArgs(args) {
+      const start = argValue(args, ["start", "start_line", "line_start"]);
+      const end = argValue(args, ["end", "end_line", "line_end"]);
+      if (start && end) return `${start}-${end}`;
+      return start || end || "";
+    }
+
+    function renderGitHubDiff(edits, path = "") {
+      const rows = [];
+      const fileLabel = path || "file";
+      let oldLine = 1;
+      let newLine = 1;
+      rows.push(`<tr class="ghDiffMeta"><td colspan="4">${escapeHtml(fileLabel)}</td></tr>`);
+      for (const edit of edits) {
+        rows.push(`<tr class="ghDiffMeta"><td colspan="4">@@ replace @@</td></tr>`);
+        for (const line of splitCodeLines(edit.oldText || "")) {
+          if (!edit.oldText && line === "") continue;
+          rows.push(`<tr class="ghDiffDel"><td class="ghDiffNum">${oldLine++}</td><td class="ghDiffNum"></td><td class="ghDiffMark">-</td><td class="ghDiffCode">${escapeHtml(line)}</td></tr>`);
+        }
+        for (const line of splitCodeLines(edit.newText || "")) {
+          if (!edit.newText && line === "") continue;
+          rows.push(`<tr class="ghDiffAdd"><td class="ghDiffNum"></td><td class="ghDiffNum">${newLine++}</td><td class="ghDiffMark">+</td><td class="ghDiffCode">${escapeHtml(line)}</td></tr>`);
+        }
+      }
+      return `<div class="ghDiff"><table><tbody>${rows.join("")}</tbody></table></div>`;
+    }
+
+    function renderGitHubSplitDiff(edits, path = "") {
+      const rows = [];
+      const fileLabel = path || "file";
+      rows.push(`<tr class="ghSplitMeta"><td colspan="6">${escapeHtml(fileLabel)}</td></tr>`);
+      for (const edit of edits) {
+        rows.push(`<tr class="ghSplitMeta"><td colspan="6">@@ replace @@</td></tr>`);
+        const oldLines = edit.oldText ? splitCodeLines(edit.oldText) : [];
+        const newLines = edit.newText ? splitCodeLines(edit.newText) : [];
+        const max = Math.max(oldLines.length, newLines.length, 1);
+        for (let i = 0; i < max; i++) {
+          const hasOld = i < oldLines.length;
+          const hasNew = i < newLines.length;
+          rows.push(`
+            <tr>
+              <td class="ghSplitNum ghSplitDel">${hasOld ? i + 1 : ""}</td>
+              <td class="ghSplitMark ghSplitDel">${hasOld ? "-" : ""}</td>
+              <td class="ghSplitCode ghSplitDel">${hasOld ? escapeHtml(oldLines[i]) : ""}</td>
+              <td class="ghSplitNum ghSplitAdd">${hasNew ? i + 1 : ""}</td>
+              <td class="ghSplitMark ghSplitAdd">${hasNew ? "+" : ""}</td>
+              <td class="ghSplitCode ghSplitAdd">${hasNew ? escapeHtml(newLines[i]) : ""}</td>
+            </tr>
+          `);
+        }
+      }
+      return `<div class="ghSplit"><table><tbody>${rows.join("")}</tbody></table></div>`;
+    }
+
+    function renderToolMain(toolName, args) {
+      if (toolName === "bash") {
+        const command = bashCommandFromArgs(args);
+        if (command) return codeBlockHtml(command, "bash");
+      }
+      if (toolName === "read") {
+        const path = pathFromArgs(args);
+        const range = readRangeFromArgs(args);
+        return `<div class="toolSummary"><strong>read</strong>${path ? ` ${escapeHtml(path)}` : ""}${range ? `:${escapeHtml(range)}` : ""}</div>`;
+      }
+      if (toolName === "write") {
+        const path = pathFromArgs(args);
+        const content = writeContentFromArgs(args);
+        if (content) {
+          return `<div class="toolSummary"><strong>write</strong>${path ? ` ${escapeHtml(path)}` : ""}</div>${renderGitHubDiff([{ oldText: "", newText: content }], path)}`;
+        }
+      }
+      if (toolName === "edit") {
+        const path = pathFromArgs(args);
+        const edits = editItemsFromArgs(args).map(editTextPair).filter(edit => edit.oldText || edit.newText);
+        if (edits.length) {
+          const loc = editLocationFromArgs(args);
+          const count = edits.length > 1 ? ` (${edits.length} edits)` : "";
+          return `<div class="toolSummary"><strong>edit</strong>${path ? ` ${escapeHtml(path)}` : ""}${loc ? `:${escapeHtml(loc)}` : ""}${count}</div>${renderGitHubSplitDiff(edits, path)}`;
+        }
+      }
+      return codeBlockHtml(JSON.stringify(args, null, 2), "json");
+    }
+
+    function renderToolResponse(message, toolName = "", args = {}) {
+      if (!message) return "";
+      const label = [
+        message.name ? `name=${message.name}` : "",
+        message.tool_call_id ? `tool_call_id=${message.tool_call_id}` : ""
+      ].filter(Boolean).join("  ");
+      const rawValue = message.raw_content ?? message.raw ?? null;
+      const structured = structuredTextContent(rawValue ?? message.content);
+      const shown = structured ? structured.text : displayText(message.content);
+      const responseLang = toolName === "read"
+        ? langFromPath(pathFromArgs(args))
+        : (looksJson(shown) ? "json" : "text");
+      const rawForDetails = rawValue ?? structured?.raw;
+      const rawDetails = rawForDetails
+        ? `<details class="toolCallRaw"><summary>raw response</summary>${codeBlockHtml(prettyJsonText(rawForDetails), "json")}</details>`
+        : "";
+      return `
+        <div class="toolResponse">
+          <div class="toolResponseHead">response${label ? ` | ${escapeHtml(label)}` : ""}</div>
+          ${renderCodeOrMarkdown(shown, { markdown: false, forceCode: true, lang: responseLang })}
+          ${rawDetails}
+        </div>
+      `;
+    }
+
+    function renderToolCalls(calls, pairedResponses = []) {
+      if (!calls || !calls.length) return "";
+      return calls.map((call, i) => {
+        const rawToolName = toolNameFromCall(call);
+        const toolName = canonicalToolName(rawToolName);
+        const args = toolArgsFromCall(call);
+        const main = renderToolMain(toolName, args);
+        return `
+          <div class="toolCall">
+            <div class="toolCallHead">tool_call ${i + 1}: ${escapeHtml(rawToolName || toolName)}</div>
+            ${main}
+            <details class="toolCallRaw">
+              <summary>raw</summary>
+              ${codeBlockHtml(JSON.stringify(call, null, 2), "json")}
+            </details>
+            ${renderToolResponse(pairedResponses[i], toolName, args)}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function buildMessageViews(messages) {
+      const consumed = new Set();
+      const views = [];
+      for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
+        if (!message || consumed.has(index)) continue;
+        const responses = [];
+        if (message.tool_calls?.length) {
+          const nextToolIndexes = [];
+          for (let j = index + 1; j < messages.length; j++) {
+            const candidate = messages[j];
+            if (candidate?.role !== "tool" || consumed.has(j)) break;
+            nextToolIndexes.push(j);
+          }
+          message.tool_calls.forEach((call, callIndex) => {
+            const callId = call.id || call.tool_call_id;
+            let matchedIndex = -1;
+            if (callId) {
+              matchedIndex = nextToolIndexes.find(j => messages[j]?.tool_call_id === callId);
+            }
+            if (matchedIndex < 0 && nextToolIndexes[callIndex] !== undefined) {
+              matchedIndex = nextToolIndexes[callIndex];
+            }
+            if (matchedIndex >= 0) {
+              responses[callIndex] = messages[matchedIndex];
+              consumed.add(matchedIndex);
+            }
+          });
+        }
+        views.push({ message, index, responses });
+      }
+      return views;
+    }
+
+    function mergeAdjacentAssistantViews(views) {
+      const groups = [];
+      for (const view of views) {
+        const role = view.message?.role || "?";
+        const previous = groups[groups.length - 1];
+        if (role === "assistant" && previous?.role === "assistant") {
+          previous.views.push(view);
+        } else {
+          groups.push({ role, views: [view] });
+        }
+      }
+      return groups;
+    }
+
+    function extrasForMessage(message) {
+      const extras = [];
+      if (message.tool_calls) extras.push(`tool_calls=${message.tool_calls.length}`);
+      if (message.name) extras.push(`name=${message.name}`);
+      if (message.tool_call_id) extras.push(`tool_call_id=${message.tool_call_id}`);
+      return extras;
+    }
+
+    function renderMessageChunk(view) {
+      const { message, responses } = view;
+      const role = message.role || "?";
+      const forceCode = role === "tool";
+      const markdown = role !== "tool";
+      return `
+        <div class="messageChunk">
+          ${message.reasoning_content ? `<div class="reasoningBox">${escapeHtml(message.reasoning_content)}</div>` : ""}
+          ${message.content ? renderCodeOrMarkdown(message.content, { markdown, forceCode }) : ""}
+          ${renderToolCalls(message.tool_calls, responses)}
+        </div>
+      `;
+    }
+
+    function renderMessageGroup(group, displayIndex) {
+      const first = group.views[0].message;
+      const role = first.role || "?";
+      const extras = group.views.flatMap(view => extrasForMessage(view.message));
+      const uniqueExtras = Array.from(new Set(extras));
+      return `
+        <article class="message role-${escapeHtml(role)}">
+          <div class="messageHead">
+            <span>${displayIndex + 1}. ${escapeHtml(role.toUpperCase())}</span>
+            <span class="sub">${escapeHtml(uniqueExtras.join("  "))}</span>
+          </div>
+          <div class="messageBody">
+            ${group.views.map(renderMessageChunk).join("")}
+          </div>
+        </article>
+      `;
+    }
+
+    function renderDetailLoading(entry) {
+      state.pretextBlocks.clear();
+      els.detailTitle.textContent = shortText(recordTitle(entry), 90);
+      els.detailStatus.textContent = `${state.selectedFilteredIndex + 1}/${state.filtered.length} | loading detail`;
+      els.detail.innerHTML = `<div class="empty">Loading record ${entry?.__lineNo || state.selectedFilteredIndex + 1}...</div>`;
+    }
+
+    function renderDetailError(entry, err) {
+      state.pretextBlocks.clear();
+      els.detailTitle.textContent = shortText(recordTitle(entry), 90);
+      els.detailStatus.textContent = `${state.selectedFilteredIndex + 1}/${state.filtered.length} | detail error`;
+      els.detail.innerHTML = `
+        <div class="empty">Failed to load record ${entry?.__lineNo || state.selectedFilteredIndex + 1}: ${escapeHtml(err?.message || err)}</div>
+        ${entry ? renderJsonDetails("record summary", entry.__summary || entry, true) : ""}
+      `;
+    }
+
+    function renderDetail() {
+      const row = state.selectedRow || currentRow();
+      state.pretextBlocks.clear();
+      if (!row) {
+        els.detail.innerHTML = `<div class="empty">${state.records.length ? "No record selected." : "Load a GLM51 SFT JSONL or ATIF trajectory file with the file picker."}</div>`;
+        els.detailTitle.textContent = "Record";
+        els.detailStatus.textContent = state.records.length ? "No match" : "No file loaded";
+        return;
+      }
+      if (row.__isSummary && state.loadMode === "jsonl-lazy") {
+        renderDetailLoading(row);
+        return;
+      }
+      const b = bm25(row);
+      els.detailTitle.textContent = shortText(recordTitle(row), 90);
+      els.detailStatus.textContent = `${state.selectedFilteredIndex + 1}/${state.filtered.length} | line ${row.__lineNo || "?"}`;
+      const metaPreview = {
+        format: row.meta?.format,
+        schema_version: row.meta?.schema_version,
+        session_id: row.meta?.session_id,
+        bm25: {
+          candidate_dataset: b.candidate_dataset,
+          candidate_source: b.candidate_source,
+          candidate_doc_id: b.candidate_doc_id,
+          candidate_task_id: b.candidate_task_id,
+          candidate_title: b.candidate_title,
+          candidate_path: b.candidate_path,
+          rank: b.rank,
+          score: b.score
+        },
+        agent: row.meta?.agent,
+        model: row.meta?.model,
+        thinking: row.meta?.thinking,
+        final_metrics: row.meta?.final_metrics,
+        job: row.meta?.job,
+        mode: row.meta?.mode,
+        trial: row.meta?.trial,
+        task_name: row.meta?.task_name,
+        chat_template_kwargs: row.chat_template_kwargs
+      };
+      const messageViews = buildMessageViews(row.messages || []);
+      const messageGroups = mergeAdjacentAssistantViews(messageViews);
+      els.detail.innerHTML = `
+        <div class="topMeta">
+          <div class="kv"><div class="k">status</div><div class="v">${escapeHtml(row.meta?.status || "")}</div></div>
+          <div class="kv"><div class="k">type</div><div class="v">${escapeHtml(isThinking(row) ? "thinking" : "instruct")}</div></div>
+          <div class="kv"><div class="k">model</div><div class="v">${escapeHtml(providerModel(row))}</div></div>
+          <div class="kv"><div class="k">original</div><div class="v">${escapeHtml(originalKey(row))}</div></div>
+          <div class="kv"><div class="k">query</div><div class="v">${escapeHtml(b.query_task_name || row.meta?.task_name || "")}</div></div>
+          <div class="kv"><div class="k">rank / score</div><div class="v">${escapeHtml(`${b.rank || ""} / ${b.score ?? ""}`)}</div></div>
+        </div>
+        ${renderJsonDetails("meta", metaPreview, false)}
+        ${renderJsonDetails("tools", row.tools || [], false)}
+        ${messageGroups.map(renderMessageGroup).join("")}
+      `;
+      hydratePretextBlocks();
+    }
+
+    async function loadFile(file) {
+      resetLoadedState();
+      const token = state.loadToken;
+      state.file = file;
+      els.listStatus.textContent = "Loading...";
+      els.detailStatus.textContent = "Loading...";
+      els.detail.innerHTML = `<div class="empty">Loading ${escapeHtml(file.name || "file")}...</div>`;
+      try {
+        const isJsonl = /\.jsonl$/i.test(file.name || "");
+        let result;
+        if (isJsonl) {
+          state.loadMode = "jsonl-lazy";
+          els.listStatus.textContent = "Indexing...";
+          result = await indexJsonlFile(file, token);
+        } else {
+          state.loadMode = "full";
+          result = await loadJsonFile(file, token);
+          result.rows.forEach((row, index) => addCache(rowKey(row, index + 1), row));
+        }
+        if (token !== state.loadToken) return;
+        resetForRecords(result.rows, isJsonl ? "jsonl-lazy" : "full", file);
+        els.detailStatus.textContent = result.errors.length ? `${result.errors.length} parse errors` : "Loaded";
+        if (result.errors.length) console.warn("JSON/JSONL parse errors", result.errors.slice(0, 20));
+      } catch (err) {
+        if (token !== state.loadToken) return;
+        state.records = [];
+        state.filtered = [];
+        els.listStatus.textContent = "Read failed";
+        els.detailStatus.textContent = "Read failed";
+        els.detail.innerHTML = `<div class="empty">Failed to load file: ${escapeHtml(err?.message || err)}</div>`;
+        renderList();
+      }
+    }
+
+    els.fileInput.addEventListener("change", event => {
+      const file = event.target.files && event.target.files[0];
+      if (file) loadFile(file);
+    });
+    els.searchInput.addEventListener("input", () => {
+      state.selectedFilteredIndex = 0;
+      applyFilters();
+    });
+    els.groupFilter.addEventListener("change", () => {
+      state.selectedFilteredIndex = 0;
+      applyFilters();
+    });
+    els.modelFilter.addEventListener("change", () => {
+      state.selectedFilteredIndex = 0;
+      applyFilters();
+    });
+    els.recordList.addEventListener("scroll", scheduleListRender);
+    els.prevBtn.addEventListener("click", () => selectIndex(state.selectedFilteredIndex - 1));
+    els.nextBtn.addEventListener("click", () => selectIndex(state.selectedFilteredIndex + 1));
+    window.addEventListener("keydown", event => {
+      if (event.target && ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName)) return;
+      if (event.key === "ArrowUp") selectIndex(state.selectedFilteredIndex - 1);
+      if (event.key === "ArrowDown") selectIndex(state.selectedFilteredIndex + 1);
+      if (event.key === "PageUp") selectIndex(state.selectedFilteredIndex - 10);
+      if (event.key === "PageDown") selectIndex(state.selectedFilteredIndex + 10);
+    });
+    window.addEventListener("resize", schedulePretextLayout);
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(schedulePretextLayout).catch(() => {});
+    }
+
+    loadPretext();
+    renderList();
+    renderDetail();
+  </script>
+</body>
+</html>
