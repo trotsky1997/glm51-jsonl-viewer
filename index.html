@@ -59,6 +59,7 @@
       display: grid;
       grid-template-rows: 58px 1fr;
       min-width: 0;
+      min-height: 0;
     }
     .toolbar {
       display: grid;
@@ -73,12 +74,15 @@
     }
     .main {
       min-height: 0;
+      height: 100%;
       display: grid;
       grid-template-columns: 390px minmax(0, 1fr);
       gap: 10px;
       padding: 10px;
+      overflow: hidden;
     }
     .pane {
+      height: 100%;
       min-height: 0;
       min-width: 0;
       background: var(--panel);
@@ -113,8 +117,10 @@
       white-space: nowrap;
     }
     .list {
+      height: 100%;
       min-height: 0;
       overflow: auto;
+      overscroll-behavior: contain;
     }
     .recordItem {
       border-bottom: 1px solid var(--line);
@@ -132,6 +138,7 @@
     .recordItem.selected { background: var(--selected); }
     .virtualListInner {
       position: relative;
+      display: block;
       min-height: 100%;
     }
     .recordTitle {
@@ -1879,6 +1886,7 @@
     }
 
     function renderList() {
+      const previousScrollTop = els.recordList.scrollTop || 0;
       els.recordList.innerHTML = "";
       if (!state.filtered.length) {
         const empty = document.createElement("div");
@@ -1899,6 +1907,9 @@
         }
         inner.appendChild(frag);
         els.recordList.appendChild(inner);
+        if (els.recordList.scrollTop !== previousScrollTop) {
+          els.recordList.scrollTop = previousScrollTop;
+        }
       }
       els.listStatus.textContent = `${state.filtered.length} / ${state.records.length}`;
       els.prevBtn.disabled = !state.filtered.length || state.selectedFilteredIndex <= 0;
@@ -2751,7 +2762,10 @@
       if (event.key === "PageUp") selectIndex(state.selectedFilteredIndex - 10);
       if (event.key === "PageDown") selectIndex(state.selectedFilteredIndex + 10);
     });
-    window.addEventListener("resize", schedulePretextLayout);
+    window.addEventListener("resize", () => {
+      scheduleListRender();
+      schedulePretextLayout();
+    });
     if (document.fonts?.ready) {
       document.fonts.ready.then(schedulePretextLayout).catch(() => {});
     }
