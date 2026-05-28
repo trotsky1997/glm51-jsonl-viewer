@@ -1887,6 +1887,7 @@
 
     function renderList() {
       const previousScrollTop = els.recordList.scrollTop || 0;
+      const viewport = els.recordList.clientHeight || 600;
       els.recordList.innerHTML = "";
       if (!state.filtered.length) {
         const empty = document.createElement("div");
@@ -1897,8 +1898,7 @@
         const inner = document.createElement("div");
         inner.className = "virtualListInner";
         inner.style.height = `${state.filtered.length * state.rowHeight}px`;
-        const scrollTop = els.recordList.scrollTop || 0;
-        const viewport = els.recordList.clientHeight || 600;
+        const scrollTop = Math.min(previousScrollTop, Math.max(0, state.filtered.length * state.rowHeight - viewport));
         const start = Math.max(0, Math.floor(scrollTop / state.rowHeight) - 6);
         const end = Math.min(state.filtered.length, Math.ceil((scrollTop + viewport) / state.rowHeight) + 6);
         const frag = document.createDocumentFragment();
@@ -1907,8 +1907,8 @@
         }
         inner.appendChild(frag);
         els.recordList.appendChild(inner);
-        if (els.recordList.scrollTop !== previousScrollTop) {
-          els.recordList.scrollTop = previousScrollTop;
+        if (els.recordList.scrollTop !== scrollTop) {
+          els.recordList.scrollTop = scrollTop;
         }
       }
       els.listStatus.textContent = `${state.filtered.length} / ${state.records.length}`;
